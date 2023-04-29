@@ -1,38 +1,38 @@
+import concurrent
 import email as email_parse
+import json
 import poplib
 import re
 import time
+import traceback
+from collections import namedtuple
 
+import psycopg2 as psycopg2
+import requests
 import undetected_chromedriver as uc
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 pkey = "20782B4C-05D0-45D7-97A0-41641055B6F6"
-key_captcha = '0d3baac93ed3fbbbddb7dfac3f529f88'
+# Establish a connection to the database
+conn = psycopg2.connect(
+    host="localhost",
+    database="postgres",
+    user="postgres",
+    password="changeme"
+)
+
+# Open a cursor to perform database operations
+cur = conn.cursor()
 
 
 def wait_util(driver: uc.Chrome, by: By, element: str, time: int) -> any:
     return WebDriverWait(driver, time).until(
         EC.visibility_of_element_located((by, element)))
 
-
-# def get_code_from_mail(email_username: str, email_password: str) -> str:
-#     mb = MailBox("outlook.office365.com").login(email_username, email_password)
-#
-#     messages = mb.fetch(criteria=AND(seen=False, from_="noreply@github.com"),
-#                         mark_seen=False,
-#                         bulk=True)
-#     for msg in messages:
-#         # Print form and subject
-#         print(msg.from_, ': ', msg.subject)
-#         # Print the plain text (if there is one)
-#         content = msg.text
-#         p = re.compile("confirm_verification/(.*)\\?")
-#         result = p.search(content)
-#         return result.group(1)
-#     raise Exception("Khong lai duoc ma code")
 
 def get_code_from_mail(email_username: str, email_password: str) -> str:
     global server
@@ -69,53 +69,64 @@ def get_code_from_mail(email_username: str, email_password: str) -> str:
                 return result[0]
     except Exception as ex:
         print(ex)
-        raise ex
+        traceback.print_exc()
+        return ''
 
 
-# def get_code_by_tag(tag: str):
-#     url = f"https://api.testmail.app/api/json?apikey=b69eb6af-7b07-4d51-94c3-d571a4322b0f&namespace=7r668&pretty=true&tag={tag}"
-#     response = requests.request("GET", url)
-#     res = response.text
-#     re.search("confirm_verification/(.*?)\\?via_launch_code_email=true", res)
+# shared_var = 0
 
 
-# def call_resolve_funcaptcha() -> str:
-#     url = f"http://2captcha.com/in.php?key={key_captcha}&method=funcaptcha&publickey={pkey}&surl=https%3A%2F%2Fapi.funcaptcha.com&pageurl=https%3A%2F%2Fgithub.com%2Fsignup"
-#
-#     response = requests.request("GET", url)
-#     res = response.text
-#     print(res)
-#     return res.split("|")[1]
+def get_proxy(index: int) -> str:
+    print('index proxy --- ' + str(index))
+    # if proxy == '':
+    #     proxy = '2e9d7d4493fdc3da5636026c33896e9f'
+    # else:
+    #     proxy = 'dc55203f61addd15947dbf60b0825504'
+    proxy_arr = ['586eca151ee91d30b102e3ff0a5ff566', '56d167f9dcb51fe2535802f6624d7252',
+                 '13d6f94be47848c8986f36c85440e2a8']
+    url = "https://tmproxy.com/api/proxy/get-new-proxy"
+    payload = json.dumps({
+        "api_key": proxy_arr[index],
+        "id_location": 0
+    })
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
+    response = requests.request("POST", url, headers=headers, data=payload)
+    json_data = response.json()
+    print(json_data)
+    code = int(json_data['code'])
+    print('code ' + str(code))
+
+    if code.__eq__(0):
+        result2: str = str(json_data['data']['https'])
+        print('IP: ' + result2)
+        return result2
+    elif code.__eq__(5):
+        message = json_data['message']
+        print(message)
+        result_find = re.findall("[0-9]{1,3}", message)
+        print(result_find)
+        wait_time = int(result_find[0])
+        time.sleep(wait_time + 1)
+        return get_proxy(index)
 
 
-# def get_captcha_res(id: str) -> str:
-#     i = 0
-#     while i < 15:
-#         time.sleep(10)
-#         url = f"http://2captcha.com/res.php?key={key_captcha}&action=get&id={id}"
-#         response = requests.request("GET", url)
-#         res: str = response.text
-#         print(res)
-#         if res.__contains__('OK'):
-#             return res[3:]
-#         if res == 'ERROR_CAPTCHA_UNSOLVABLE':
-#             break
-#         elif res == 'CAPCHA_NOT_READY':
-#             print("retry continue")
-#             i = i + 1
-#         else:
-#             print("not jet handler")
-#             break
-#
-#     return get_captcha_res(call_resolve_funcaptcha())
-
-
-def main():
+# @timeout(100)
+def run(email):
     try:
+
+        # global shared_var
+        str_exec = "insert into github_student_pack ( username, passw, email_id) "
         options = uc.ChromeOptions()
         options.add_argument(
             "--load-extension=C:\\Users\\daoma\\PycharmProjects\\github_student_pack\\dknlfmjaanfblgfdfebhijalfmhmjjjo\\0.3.4_0")
         options.add_argument("--window-size=270,425")
+        print('shared_var' + str(email.id))
+        proxy: str = get_proxy(int(email.id) % 3)
+        print('shared_var' + proxy)
+        options.add_argument("--proxy-server=" + proxy)
         options.add_argument("--disable-web-security")
         options.add_argument("--disable-site-isolation-trials")
         options.add_argument("--disable-application-cache")
@@ -125,21 +136,36 @@ def main():
         # options.add_experimental_option('excludeSwitches', ['enable-logging'])
         # captcha_key = '0d3baac93ed3fbbbddb7dfac3f529f88'
         # options.add_argument(r'--load-extension=D:\ifibfemgeogfhoebkmokieepdoobkbpo\3.3.1_0')
+        # options.add_argument("--disable-application-cache")
+
+
+        mail_username = email.username
+        mail_pass = email.passw
+        password = 'Anhmanhbu8'
+
+        profile_dir = f'D:\\profile\\{mail_username}'
+        options.add_argument(f'--user-data-dir={profile_dir}')
         driver = uc.Chrome(options=options)
-        mail_username = 'seyahmyway2@hotmail.com'
-        mail_pass = 'tKM3bQ21'
+        username = mail_username.replace("@hotmail.com", "").replace("@outlook.com", "")
         driver.get(
             "https://nopecha.com/setup#sub_1MizllCRwBwvt6pteITkRiia|enabled=true|disabled_hosts=%5B%5D|hcaptcha_auto_open=true|hcaptcha_auto_solve=true|hcaptcha_solve_delay=true|hcaptcha_solve_delay_time=3000|recaptcha_auto_open=true|recaptcha_auto_solve=true|recaptcha_solve_delay=true|recaptcha_solve_delay_time=1000|recaptcha_solve_method=Image|funcaptcha_auto_open=true|funcaptcha_auto_solve=true|funcaptcha_solve_delay=true|funcaptcha_solve_delay_time=1000|awscaptcha_auto_open=true|awscaptcha_auto_solve=true|awscaptcha_solve_delay=true|awscaptcha_solve_delay_time=1000|textcaptcha_auto_solve=true|textcaptcha_solve_delay=true|textcaptcha_solve_delay_time=100|textcaptcha_image_selector=|textcaptcha_input_selector=")
         time.sleep(2)
         driver.get("https://github.com/signup")
-        wait_util(driver, By.ID, "email", 10).send_keys(mail_username)
+        wait_util(driver, By.ID, "email", 20).send_keys(mail_username)
         time.sleep(2)
         driver.find_element(By.ID, "email").send_keys(Keys.ENTER)
-
+        isPresent: bool = len(driver.find_elements(By.XPATH,
+                                                   "/html/body/div[1]/div[4]/main/div[2]/text-suggester/div[2]/p[1]/p")) > 0
+        if isPresent:
+            insert_data = str_exec + " VALUES ( %s, %s, %s )"
+            object = (username, password, email.id)
+            cur.execute(insert_data, object)
+            conn.commit()
+            return
         driver.find_element(By.ID, "password").send_keys("Anhmanhbu8")
         time.sleep(2)
         driver.find_element(By.ID, "password").send_keys(Keys.ENTER)
-        driver.find_element(By.ID, "login").send_keys(mail_username.replace("@hotmail.com", ""))
+        driver.find_element(By.ID, "login").send_keys(username)
         time.sleep(2)
         driver.find_element(By.ID, "login").send_keys(Keys.ENTER)
 
@@ -149,11 +175,14 @@ def main():
 
         # octocaptcha = driver.find_element(By.NAME, "octocaptcha-token")
         # driver.execute_script(f"arguments[0].value='{captcha}';", octocaptcha)
-        time.sleep(4)
-        driver.find_element(By.XPATH,
-                            "/html/body/div[1]/div[4]/main/div[2]/text-suggester/div[1]/form/div[5]/button").submit()
-        time.sleep(3)
+        time.sleep(10)
+        wait_util(driver, By.XPATH, "/html/body/div[1]/div[4]/main/div[2]/text-suggester/div[1]/form/div[5]/button",
+                  30).submit()
+
+        time.sleep(5)
         code = get_code_from_mail(mail_username, mail_pass)
+        if len(code) == 0:
+            return
         wait_util(driver, By.NAME, "launch_code[]", 10).send_keys(code)
         time.sleep(2)
         driver.find_element(By.XPATH,
@@ -162,26 +191,64 @@ def main():
         driver.find_element(By.XPATH,
                             "/html/body/div[1]/div[6]/main/div[2]/div/form/div/div[2]/div/div[2]/div[1]/label").click()
         time.sleep(1)
-        driver.find_element(By.XPATH, "/html/body/div[1]/div[6]/main/div[2]/div/form/div/div[2]/div/button").click()
+        driver.find_element(By.XPATH,
+                            "/html/body/div[1]/div[6]/main/div[2]/div/form/div/div[2]/div/button").click()
         time.sleep(2)
-        driver.find_element(By.XPATH, "/html/body/div[1]/div[6]/main/div[2]/div/form/div/div[2]/div/button").click()
+        driver.find_element(By.XPATH,
+                            "/html/body/div[1]/div[6]/main/div[2]/div/form/div/div[2]/div/button").click()
         time.sleep(2)
         driver.find_element(By.XPATH, "/html/body/div[1]/div[6]/main/div[2]/div/div/div[1]/div/a").click()
         time.sleep(8)
+        insert_data = str_exec + " VALUES ( %s, %s, %s )"
+        object = (username, password, email.id)
+        cur.execute(insert_data, object)
         if driver.page_source.__contains__("Following"):
             print('Success')
-            driver.quit()
         else:
             print('Failed')
-            driver.quit()
 
     except Exception as ex:
-        print(ex)
-        time.sleep(1000)
+        traceback.print_exc()
+        str_exec = "insert into github_student_pack ( username, passw, email_id, STATUS) "
+        insert_data = str_exec + " VALUES ( %s, %s, %s ,'FAILED' )"
+        object = (username, password, email.id)
+        cur.execute(insert_data, object)
+    finally:
+        # shared_var += 1
+        conn.commit()
+        driver.close()
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    main()
+    try:
+        # thread = threading.Thread(target=get_proxy)
+        # thread.start()
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+        str_SELECT = "SELECT e.id, e.username, e.passw from EMAIL e where e.id not in (SELECT email_id from github_student_pack)"
+        cur.execute(str_SELECT)
+        # data = cur.fetchall()
+        # Create a named tuple to represent the data
+        Row = namedtuple('Row', [desc[0] for desc in cur.description])
+        # Fetch the data and convert it to named tuples
+        rows = [Row(*row) for row in cur.fetchall()]
+        # for email in rows:
+        #     run(email)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            # Submit tasks to the pool
+            futures = [executor.submit(run, email) for email in rows]
+
+            # Wait for tasks to complete
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                print("result" + result)
+
+    # try:
+    #     with multiprocessing.Pool(processes=4) as pool:
+    #         [pool.apply_async(run(), (email,)) for email in rows]
+
+    except Exception as ex:
+        print(ex)
+    finally:
+        cur.close()
+        conn.close()

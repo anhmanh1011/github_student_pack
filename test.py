@@ -2,6 +2,7 @@
 import email as email_parse
 import poplib
 import re
+import traceback
 
 
 def get_code_from_mail(email, password):
@@ -32,19 +33,20 @@ def get_code_from_mail(email, password):
             print(f'Subject: {message["subject"]}')
             print(f'From: {message["from"]}')
             mes_from: str = message["from"]
-            if mes_from.__contains__('noreply@github.com'):
-                content: str = str(message.get_payload(0))
-                print(content)
-                result = re.findall("[0-9]{8}", content)
-                # p = re.compile("confirm_verification/(.*)\\?")
-                # result = p.search(content)
-                print(result)
-                print(result[0])
-    except poplib.error_proto as e:
-        print(email + "：fail")
-        print(e)
+            # content: str = str(message.get_payload(0))
+            print(message)
+
+            # if mes_from.__contains__('noreply@github.com'):
+            #     content: str = str(message.get_payload(0))
+            #     print(content)
+            #     result = re.findall("[0-9]{8}", content)
+            #     return result[0]
+    except Exception as ex:
+        print(ex)
+        traceback.print_exc()
+        return ''
     server.quit()
 
 
 if __name__ == '__main__':
-    get_code_from_mail("tareiktshedyy@hotmail.com", "ahYGnT15")
+    get_code_from_mail("bovellcurlem@hotmail.com", "yb48dA46")
